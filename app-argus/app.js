@@ -302,7 +302,7 @@ function getProjectSteps() {
 }
 
 function getPortalUrl(token) {
-  const url = new URL("../src/cliente.html", window.location.href);
+  const url = new URL(config.clientPortalUrl);
   url.searchParams.set("token", token);
   return url.href;
 }
