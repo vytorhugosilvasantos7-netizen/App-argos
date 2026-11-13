@@ -23,7 +23,10 @@ const today = () => {
 const amountValue = (value) => Number(value) || 0;
 const formatCurrency = (value) => currency.format(value);
 const formatDate = (value) => value ? dateFormat.format(new Date(`${value}T00:00:00Z`)) : "—";
-const statusLabel = (status) => status === "completed" ? "Concluído" : "Em andamento";
+const statusLabels = { pending: "Aguardando início", in_progress: "Em andamento", finishing: "Finalização", completed: "Concluído" };
+const statusLabel = (status) => statusLabels[status] ?? status;
+const paidEntries = (items) => items.filter((entry) => entry.payment_status === "paid");
+const sumKind = (items, kind) => items.filter((entry) => entry.kind === kind).reduce((sum, entry) => sum + amountValue(entry.amount), 0);
 
 function showNotice(message, isError = false) {
   appStatus.textContent = message;
@@ -47,15 +50,18 @@ function getMonthlyEntries() {
 
 function renderOverview() {
   const inProgress = clients.filter((client) => client.status === "in_progress").length;
-  const completed = clients.length - inProgress;
-  const income = entries.filter((entry) => entry.kind === "income").reduce((sum, entry) => sum + amountValue(entry.amount), 0);
-  const expenses = entries.filter((entry) => entry.kind === "expense").reduce((sum, entry) => sum + amountValue(entry.amount), 0);
-  const monthly = getMonthlyEntries();
-  const monthIncome = monthly.filter((entry) => entry.kind === "income").reduce((sum, entry) => sum + amountValue(entry.amount), 0);
-  const monthExpenses = monthly.filter((entry) => entry.kind === "expense").reduce((sum, entry) => sum + amountValue(entry.amount), 0);
+  const completed = clients.filter((client) => client.status === "completed").length;
+  const finishing = clients.filter((client) => client.status === "finishing").length;
+  const paid = paidEntries(entries);
+  const income = sumKind(paid, "income");
+  const expenses = sumKind(paid, "expense");
+  const monthly = paidEntries(getMonthlyEntries());
+  const monthIncome = sumKind(monthly, "income");
+  const monthExpenses = sumKind(monthly, "expense");
 
   document.querySelector("#metric-clients").textContent = String(clients.length);
   document.querySelector("#metric-progress").textContent = String(inProgress);
+  document.querySelector("#metric-finishing").textContent = String(finishing);
   document.querySelector("#metric-completed").textContent = String(completed);
   document.querySelector("#metric-profit").textContent = formatCurrency(income - expenses);
   document.querySelector("#month-income").textContent = formatCurrency(monthIncome);
@@ -78,7 +84,7 @@ function renderOverview() {
     serviceCell.textContent = client.service;
     const statusCell = document.createElement("td");
     const badge = document.createElement("span");
-    badge.className = `status-pill${client.status === "completed" ? " is-completed" : ""}`;
+    badge.className = `status-pill is-${client.status}`;
     badge.textContent = statusLabel(client.status);
     statusCell.append(badge);
     row.append(nameCell, serviceCell, statusCell);
@@ -108,7 +114,7 @@ function renderClients() {
     dueCell.textContent = formatDate(client.due_date);
     const statusCell = document.createElement("td");
     const badge = document.createElement("span");
-    badge.className = `status-pill${client.status === "completed" ? " is-completed" : ""}`;
+    badge.className = `status-pill is-${client.status}`;
     badge.textContent = statusLabel(client.status);
     statusCell.append(badge);
     const actionCell = document.createElement("td");
@@ -145,9 +151,11 @@ function renderClients() {
 }
 
 function renderFinance() {
-  const income = entries.filter((entry) => entry.kind === "income").reduce((sum, entry) => sum + amountValue(entry.amount), 0);
-  const expenses = entries.filter((entry) => entry.kind === "expense").reduce((sum, entry) => sum + amountValue(entry.amount), 0);
+  const paid = paidEntries(entries);
+  const income = sumKind(paid, "income");
+  const expenses = sumKind(paid, "expense");
   document.querySelector("#total-income").textContent = formatCurrency(income);
+  document.querySelector("#total-pending").textContent = formatCurrency(sumKind(entries.filter((entry) => entry.payment_status === "pending"), "income"));
   document.querySelector("#total-expenses").textContent = formatCurrency(expenses);
   document.querySelector("#total-profit").textContent = formatCurrency(income - expenses);
   const filter = document.querySelector("#finance-filter").value;
@@ -162,11 +170,19 @@ function renderFinance() {
     strong.textContent = entry.description;
     description.append(strong);
     descriptionCell.append(description);
+    const projectCell = document.createElement("td");
+    const project = clients.find((client) => client.id === entry.client_id);
+    projectCell.textContent = project ? `${project.name} · ${project.service}` : "—";
     const kindCell = document.createElement("td");
     const badge = document.createElement("span");
     badge.className = `type-pill is-${entry.kind}`;
     badge.textContent = entry.kind === "income" ? "Receita" : "Despesa";
     kindCell.append(badge);
+    const paymentCell = document.createElement("td");
+    const paymentBadge = document.createElement("span");
+    paymentBadge.className = `status-pill is-${entry.payment_status === "paid" ? "completed" : "pending"}`;
+    paymentBadge.textContent = entry.payment_status === "paid" ? "Pago" : "Pendente";
+    paymentCell.append(paymentBadge);
     const dateCell = document.createElement("td");
     dateCell.textContent = formatDate(entry.occurred_on);
     const amountCell = document.createElement("td");
@@ -186,7 +202,7 @@ function renderFinance() {
     remove.addEventListener("click", () => deleteEntry(entry));
     actions.append(edit, remove);
     actionCell.append(actions);
-    row.append(descriptionCell, kindCell, dateCell, amountCell, actionCell);
+    row.append(descriptionCell, projectCell, kindCell, paymentCell, dateCell, amountCell, actionCell);
     return row;
   }));
   document.querySelector("#finance-empty").hidden = filtered.length > 0;
@@ -200,6 +216,14 @@ function renderAll() {
 
 async function loadData() {
   showNotice("");
+  const access = await supabase.rpc("is_argos_admin");
+  if (access.error || !access.data) {
+    clients = [];
+    entries = [];
+    renderAll();
+    showNotice(access.error ? `Não foi possível verificar o acesso: ${access.error.message}` : "Esta conta não está autorizada como administradora. Peça a inclusão dela em argos_admins no Supabase.", true);
+    return;
+  }
   const [clientsResult, entriesResult] = await Promise.all([
     supabase.from("clients").select("*").order("created_at", { ascending: false }),
     supabase.from("finance_entries").select("*").order("occurred_on", { ascending: false }).order("created_at", { ascending: false }),
@@ -318,9 +342,14 @@ async function copyPortalLink(token) {
 
 function openEntryDialog(entry = null) {
   entryForm.reset();
+  const projectSelect = document.querySelector("#entry-client");
+  projectSelect.replaceChildren(new Option("Sem projeto vinculado", ""));
+  clients.forEach((client) => projectSelect.add(new Option(`${client.name} · ${client.service}`, client.id)));
+  projectSelect.value = entry?.client_id ?? "";
   document.querySelector("#entry-id").value = entry?.id ?? "";
   document.querySelector("#entry-description").value = entry?.description ?? "";
   document.querySelector("#entry-kind").value = entry?.kind ?? "income";
+  document.querySelector("#entry-payment-status").value = entry?.payment_status ?? "paid";
   document.querySelector("#entry-amount").value = entry?.amount ?? "";
   document.querySelector("#entry-date").value = entry?.occurred_on ?? today();
   document.querySelector("#entry-dialog-title").textContent = entry ? "Editar lançamento" : "Novo lançamento";
@@ -467,6 +496,8 @@ entryForm.addEventListener("submit", async (event) => {
     id: String(formData.get("id") || ""),
     description: String(formData.get("description")).trim(),
     kind: String(formData.get("kind")),
+    client_id: String(formData.get("client_id")) || null,
+    payment_status: String(formData.get("payment_status")),
     amount: Number(formData.get("amount")),
     occurred_on: String(formData.get("occurred_on")),
   };
@@ -489,6 +520,7 @@ if (!config.supabaseUrl || !config.supabaseAnonKey) {
     else {
       clients = [];
       entries = [];
+      renderAll();
       loginForm.reset();
       loginStatus.textContent = "";
     }

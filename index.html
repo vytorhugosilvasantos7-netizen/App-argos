@@ -24,7 +24,7 @@
     <main id="login-screen" class="login-screen">
       <section class="login-card" aria-labelledby="login-title">
         <a class="brand" href="#" aria-label="Argos">
-          <span class="brand-mark">&lt;</span>argos<span class="brand-period">.</span>
+          <span class="brand-mark">&lt;</span>argos<span class="brand-period">.</span><span class="brand-admin">Admin</span>
         </a>
         <p class="eyebrow">PAINEL ADMINISTRATIVO</p>
         <h1 id="login-title">Entre na sua conta.</h1>
@@ -49,9 +49,9 @@
     <div id="app-shell" class="app-shell" hidden>
       <aside class="sidebar">
         <a class="brand sidebar-brand" href="#" aria-label="Argos, painel">
-          <span class="brand-mark">&lt;</span>argos<span class="brand-period">.</span>
+          <span class="brand-mark">&lt;</span>argos<span class="brand-period">.</span><span class="brand-admin">Admin</span>
         </a>
-        <p class="sidebar-label">GESTÃO</p>
+        <p class="sidebar-label">PAINEL INTERNO · ACESSO RESTRITO</p>
         <nav class="side-nav" aria-label="Navegação do painel">
           <button class="nav-link is-active" type="button" data-view="overview"><span>◫</span> Visão geral</button>
           <button class="nav-link" type="button" data-view="clients"><span>♧</span> Clientes e projetos</button>
@@ -82,6 +82,7 @@
             <div class="metrics-grid">
               <article class="metric-card"><span class="metric-icon">♧</span><p>Clientes cadastrados</p><strong id="metric-clients">—</strong><small>na sua carteira</small></article>
               <article class="metric-card"><span class="metric-icon metric-icon-red">◷</span><p>Projetos em andamento</p><strong id="metric-progress">—</strong><small>precisam ser finalizados</small></article>
+              <article class="metric-card"><span class="metric-icon">◈</span><p>Projetos em finalização</p><strong id="metric-finishing">—</strong><small>na etapa final</small></article>
               <article class="metric-card"><span class="metric-icon">✓</span><p>Projetos concluídos</p><strong id="metric-completed">—</strong><small>entregues aos clientes</small></article>
               <article class="metric-card profit-card"><span class="metric-icon metric-icon-red">↗</span><p>Lucro acumulado</p><strong id="metric-profit">—</strong><small>receitas menos despesas</small></article>
             </div>
@@ -101,7 +102,7 @@
                 <div class="summary-row"><span>Receitas</span><strong id="month-income">—</strong></div>
                 <div class="summary-row"><span>Despesas</span><strong id="month-expenses">—</strong></div>
                 <div class="summary-total"><span>Resultado do mês</span><strong id="month-profit">—</strong></div>
-                <p class="summary-note">Valores calculados com base nos lançamentos financeiros.</p>
+                <p class="summary-note">Somente lançamentos pagos, pela data registrada.</p>
               </section>
             </div>
           </section>
@@ -126,13 +127,14 @@
           <section class="view-panel" data-panel="finance" hidden>
             <div class="page-heading">
               <div><p class="eyebrow">CONTROLE DO NEGÓCIO</p><h1>Financeiro<span class="brand-period">.</span></h1>
-                <p class="page-description">Registre receitas e despesas e acompanhe seu lucro.</p></div>
+                <p class="page-description">Acompanhe pagamentos, receitas, despesas e lucro.</p></div>
               <button class="button button-primary" type="button" data-open-dialog="entry-dialog">+ Novo lançamento</button>
             </div>
             <div class="finance-metrics">
-              <article class="metric-card"><p>Receitas</p><strong id="total-income">—</strong><small>todos os lançamentos</small></article>
-              <article class="metric-card"><p>Despesas</p><strong id="total-expenses">—</strong><small>todos os lançamentos</small></article>
-              <article class="metric-card profit-card"><p>Lucro acumulado</p><strong id="total-profit">—</strong><small>receitas menos despesas</small></article>
+              <article class="metric-card"><p>Faturamento recebido</p><strong id="total-income">—</strong><small>receitas pagas</small></article>
+              <article class="metric-card"><p>Valores a receber</p><strong id="total-pending">—</strong><small>receitas pendentes</small></article>
+              <article class="metric-card"><p>Despesas pagas</p><strong id="total-expenses">—</strong><small>saídas realizadas</small></article>
+              <article class="metric-card profit-card"><p>Lucro acumulado</p><strong id="total-profit">—</strong><small>receitas pagas menos despesas pagas</small></article>
             </div>
             <section class="panel-card">
               <div class="list-toolbar"><div><h2>Lançamentos</h2><p>Histórico de receitas e despesas</p></div>
@@ -140,7 +142,7 @@
                   <select id="finance-filter"><option value="all">Todos</option><option value="income">Receitas</option><option value="expense">Despesas</option></select>
                 </label></div>
               <div class="table-wrap">
-                <table class="full-table"><thead><tr><th>DESCRIÇÃO</th><th>TIPO</th><th>DATA</th><th>VALOR</th><th>AÇÕES</th></tr></thead>
+                <table class="full-table"><thead><tr><th>DESCRIÇÃO</th><th>PROJETO</th><th>TIPO</th><th>PAGAMENTO</th><th>DATA</th><th>VALOR</th><th>AÇÕES</th></tr></thead>
                   <tbody id="finance-table"></tbody></table>
                 <p id="finance-empty" class="empty-state" hidden>Nenhum lançamento encontrado.</p>
               </div>
@@ -158,7 +160,7 @@
         <label for="client-name">Nome do cliente ou empresa<input id="client-name" name="name" maxlength="120" required /></label>
         <label for="client-service">Serviço contratado<input id="client-service" name="service" maxlength="120" placeholder="Ex.: Site institucional" required /></label>
         <div class="form-row">
-          <label for="client-status">Status<select id="client-status" name="status"><option value="in_progress">Em andamento</option><option value="completed">Concluído</option></select></label>
+          <label for="client-status">Status<select id="client-status" name="status"><option value="pending">Aguardando início</option><option value="in_progress">Em andamento</option><option value="finishing">Finalização</option><option value="completed">Concluído</option></select></label>
           <label for="client-due-date">Previsão de entrega<input id="client-due-date" name="due_date" type="date" /></label>
         </div>
         <label for="client-description">Descrição do projeto<textarea id="client-description" name="project_description" maxlength="1000" rows="3" placeholder="Conte ao cliente o que está sendo desenvolvido."></textarea></label>
@@ -194,10 +196,12 @@
           <button class="icon-button" type="button" data-close-dialog aria-label="Fechar">×</button></div>
         <input id="entry-id" name="id" type="hidden" />
         <label for="entry-description">Descrição<input id="entry-description" name="description" maxlength="160" placeholder="Ex.: Criação de site — Cliente X" required /></label>
+        <label for="entry-client">Projeto vinculado (opcional)<select id="entry-client" name="client_id"><option value="">Sem projeto vinculado</option></select></label>
         <div class="form-row">
           <label for="entry-kind">Tipo<select id="entry-kind" name="kind"><option value="income">Receita</option><option value="expense">Despesa</option></select></label>
           <label for="entry-amount">Valor (R$)<input id="entry-amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required /></label>
         </div>
+        <label for="entry-payment-status">Situação do pagamento<select id="entry-payment-status" name="payment_status"><option value="paid">Pago</option><option value="pending">Pendente</option></select></label>
         <label for="entry-date">Data<input id="entry-date" name="occurred_on" type="date" required /></label>
         <p id="entry-form-status" class="form-status" role="status" aria-live="polite"></p>
         <div class="dialog-actions"><button class="button button-secondary" type="button" data-close-dialog>Cancelar</button>
