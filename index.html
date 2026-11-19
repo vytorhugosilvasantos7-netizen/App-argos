@@ -56,6 +56,7 @@
           <button class="nav-link is-active" type="button" data-view="overview"><span>◫</span> Visão geral</button>
           <button class="nav-link" type="button" data-view="clients"><span>♧</span> Clientes e projetos</button>
           <button class="nav-link" type="button" data-view="finance"><span>▤</span> Financeiro</button>
+          <button class="nav-link" type="button" data-view="marketing"><span>◎</span> Marketing</button>
         </nav>
         <div class="sidebar-bottom">
           <span class="sidebar-status"><i></i> Seus dados estão protegidos</span>
@@ -105,6 +106,23 @@
                 <p class="summary-note">Somente lançamentos pagos, pela data registrada.</p>
               </section>
             </div>
+            <section class="panel-card admin-social-card" aria-labelledby="admin-social-title">
+              <span class="admin-social-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <rect x="3" y="3" width="18" height="18" rx="5" />
+                  <circle cx="12" cy="12" r="4" />
+                  <circle class="admin-social-icon-dot" cx="17.5" cy="6.8" r="1" />
+                </svg>
+              </span>
+              <div class="admin-social-copy">
+                <p class="eyebrow">REDES SOCIAIS DA ARGOS</p>
+                <h2 id="admin-social-title">Acompanhe a Argos no Instagram</h2>
+                <p>Novidades, projetos e ideias para fortalecer a presença digital.</p>
+              </div>
+              <a class="button button-secondary admin-social-link" href="https://www.instagram.com/_argos_dev/" target="_blank" rel="noopener noreferrer">
+                @_argos_dev <span aria-hidden="true">↗</span>
+              </a>
+            </section>
           </section>
 
           <section class="view-panel" data-panel="clients" hidden>
@@ -145,6 +163,49 @@
                 <table class="full-table"><thead><tr><th>DESCRIÇÃO</th><th>PROJETO</th><th>TIPO</th><th>PAGAMENTO</th><th>DATA</th><th>VALOR</th><th>AÇÕES</th></tr></thead>
                   <tbody id="finance-table"></tbody></table>
                 <p id="finance-empty" class="empty-state" hidden>Nenhum lançamento encontrado.</p>
+              </div>
+            </section>
+          </section>
+
+          <section class="view-panel" data-panel="marketing" hidden>
+            <div class="page-heading">
+              <div><p class="eyebrow">PRESENÇA DIGITAL DA ARGOS</p><h1>Marketing<span class="brand-period">.</span></h1>
+                <p class="page-description">Organize ideias, legendas, materiais e publicações do Instagram.</p></div>
+              <button class="button button-primary" type="button" data-open-dialog="marketing-dialog">+ Novo conteúdo</button>
+            </div>
+            <div class="notice marketing-connection-notice" role="status" aria-live="polite">
+              <div class="marketing-connection-copy">
+                <strong id="marketing-connection-title">Instagram ainda não conectado.</strong>
+                <span id="marketing-connection-description">Conecte a conta profissional da Argos para preparar a integração oficial com a Meta. A publicação automática ainda está em configuração.</span>
+              </div>
+              <div class="marketing-connection-actions">
+                <button id="connect-instagram" class="button button-primary" type="button">Conectar Instagram</button>
+                <button id="disconnect-instagram" class="button button-secondary" type="button" hidden>Desconectar</button>
+              </div>
+              <div class="marketing-redirect-row">
+                <span><strong>Redirect URI da Meta</strong><code id="meta-redirect-uri"></code></span>
+                <button id="copy-meta-redirect-uri" class="button button-secondary" type="button">Copiar URI</button>
+              </div>
+            </div>
+            <div id="marketing-connection-error" class="notice notice-error" role="alert" hidden></div>
+            <div id="marketing-load-status" class="notice notice-error" role="alert" hidden></div>
+            <div class="marketing-metrics">
+              <article class="metric-card"><p>Ideias e rascunhos</p><strong id="marketing-drafts">—</strong><small>conteúdo em preparação</small></article>
+              <article class="metric-card"><p>Publicações planejadas</p><strong id="marketing-planned">—</strong><small>organizadas no calendário</small></article>
+              <article class="metric-card"><p>Publicações registradas</p><strong id="marketing-published">—</strong><small>marcadas como publicadas</small></article>
+              <article class="metric-card"><p>Alcance registrado</p><strong id="marketing-reach">—</strong><small>métricas preenchidas manualmente</small></article>
+            </div>
+            <section class="panel-card">
+              <div class="list-toolbar">
+                <div><h2>Calendário de conteúdo</h2><p>Ideias, rascunhos e publicações da Argos</p></div>
+                <a class="marketing-profile-link" href="https://www.instagram.com/_argos_dev/" target="_blank" rel="noopener noreferrer">Instagram @_argos_dev ↗</a>
+              </div>
+              <div id="marketing-empty" class="empty-state" hidden>Nenhum conteúdo cadastrado. Crie uma ideia ou planeje a próxima publicação.</div>
+              <div id="marketing-table-wrap" class="table-wrap">
+                <table class="full-table marketing-table">
+                  <thead><tr><th>DATA / STATUS</th><th>CONTEÚDO</th><th>MATERIAL</th><th>ALCANCE</th><th>ENGAJAMENTO</th><th>AÇÕES</th></tr></thead>
+                  <tbody id="marketing-table"></tbody>
+                </table>
               </div>
             </section>
           </section>
@@ -206,6 +267,45 @@
         <p id="entry-form-status" class="form-status" role="status" aria-live="polite"></p>
         <div class="dialog-actions"><button class="button button-secondary" type="button" data-close-dialog>Cancelar</button>
           <button class="button button-primary" type="submit">Salvar lançamento</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="marketing-dialog" class="app-dialog marketing-dialog">
+      <form id="marketing-form" class="dialog-form">
+        <div class="dialog-heading"><div><p class="eyebrow">INSTAGRAM DA ARGOS</p><h2 id="marketing-dialog-title">Novo conteúdo</h2></div>
+          <button class="icon-button" type="button" data-close-dialog aria-label="Fechar">×</button></div>
+        <input id="marketing-id" name="id" type="hidden" />
+        <label for="marketing-title">Título interno<input id="marketing-title" name="title" maxlength="120" placeholder="Ex.: Dica rápida para sites de lojas" required /></label>
+        <label for="marketing-caption">Legenda<textarea id="marketing-caption" name="caption" maxlength="2200" rows="5" placeholder="Escreva a legenda do post..."></textarea></label>
+        <label for="marketing-hashtags">Hashtags <span class="field-hint">Opcional; separe por espaço ou linha.</span>
+          <textarea id="marketing-hashtags" name="hashtags" maxlength="800" rows="2" placeholder="#Argos #DesenvolvimentoWeb"></textarea>
+        </label>
+        <label for="marketing-media-url">Link público da imagem ou vídeo <span class="field-hint">Opcional; necessário para futura publicação automática.</span>
+          <input id="marketing-media-url" name="media_url" type="url" maxlength="2048" placeholder="https://..." />
+        </label>
+        <div class="form-row">
+          <label for="marketing-post-status">Situação
+            <select id="marketing-post-status" name="status">
+              <option value="idea">Ideia</option>
+              <option value="draft">Rascunho</option>
+              <option value="planned">Planejado</option>
+              <option value="published">Publicado</option>
+            </select>
+          </label>
+          <label for="marketing-scheduled-at">Data e hora planejadas<input id="marketing-scheduled-at" name="scheduled_at" type="datetime-local" /></label>
+        </div>
+        <fieldset class="marketing-results">
+          <legend>Métricas registradas manualmente</legend>
+          <div class="form-row">
+            <label for="marketing-reach-input">Alcance<input id="marketing-reach-input" name="reach" type="number" min="0" max="2147483647" step="1" value="0" /></label>
+            <label for="marketing-likes-input">Curtidas<input id="marketing-likes-input" name="likes" type="number" min="0" max="2147483647" step="1" value="0" /></label>
+            <label for="marketing-comments-input">Comentários<input id="marketing-comments-input" name="comments" type="number" min="0" max="2147483647" step="1" value="0" /></label>
+            <label for="marketing-shares-input">Compartilhamentos<input id="marketing-shares-input" name="shares" type="number" min="0" max="2147483647" step="1" value="0" /></label>
+          </div>
+        </fieldset>
+        <p id="marketing-form-status" class="form-status" role="status" aria-live="polite"></p>
+        <div class="dialog-actions"><button class="button button-secondary" type="button" data-close-dialog>Cancelar</button>
+          <button class="button button-primary" type="submit">Salvar conteúdo</button></div>
       </form>
     </dialog>
   </body>

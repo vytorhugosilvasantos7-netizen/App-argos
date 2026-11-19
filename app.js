@@ -1,6 +1,9 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
 const config = window.ARGOS_CONFIG ?? {};
+const metaInstagramFunctionUrl = config.supabaseUrl
+  ? `${String(config.supabaseUrl).replace(/\/$/, "")}/functions/v1/meta-instagram`
+  : "";
 const loginScreen = document.querySelector("#login-screen");
 const appShell = document.querySelector("#app-shell");
 const loginForm = document.querySelector("#login-form");
@@ -9,11 +12,13 @@ const configNotice = document.querySelector("#config-notice");
 const appStatus = document.querySelector("#app-status");
 const clientForm = document.querySelector("#client-form");
 const entryForm = document.querySelector("#entry-form");
+const marketingForm = document.querySelector("#marketing-form");
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const dateFormat = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "UTC" });
 let supabase;
 let clients = [];
 let entries = [];
+let marketingPosts = [];
 
 const today = () => {
   const date = new Date();
@@ -25,6 +30,8 @@ const formatCurrency = (value) => currency.format(value);
 const formatDate = (value) => value ? dateFormat.format(new Date(`${value}T00:00:00Z`)) : "—";
 const statusLabels = { pending: "Aguardando início", in_progress: "Em andamento", finishing: "Finalização", completed: "Concluído" };
 const statusLabel = (status) => statusLabels[status] ?? status;
+const marketingStatusLabels = { idea: "Ideia", draft: "Rascunho", planned: "Planejado", published: "Publicado" };
+const marketingDateFormat = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
 const paidEntries = (items) => items.filter((entry) => entry.payment_status === "paid");
 const sumKind = (items, kind) => items.filter((entry) => entry.kind === kind).reduce((sum, entry) => sum + amountValue(entry.amount), 0);
 
@@ -212,6 +219,221 @@ function renderAll() {
   renderOverview();
   renderClients();
   renderFinance();
+  renderMarketing();
+}
+
+function formatMarketingDate(value) {
+  if (!value) return "Sem data planejada";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Data inválida" : marketingDateFormat.format(date);
+}
+
+function toLocalDateTimeInput(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (part) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function renderMarketing() {
+  const ideasAndDrafts = marketingPosts.filter((post) => ["idea", "draft"].includes(post.status)).length;
+  const planned = marketingPosts.filter((post) => post.status === "planned").length;
+  const published = marketingPosts.filter((post) => post.status === "published").length;
+  const reach = marketingPosts.reduce((total, post) => total + Number(post.reach || 0), 0);
+  document.querySelector("#marketing-drafts").textContent = String(ideasAndDrafts);
+  document.querySelector("#marketing-planned").textContent = String(planned);
+  document.querySelector("#marketing-published").textContent = String(published);
+  document.querySelector("#marketing-reach").textContent = new Intl.NumberFormat("pt-BR").format(reach);
+
+  const table = document.querySelector("#marketing-table");
+  const sortedPosts = [...marketingPosts].sort((left, right) => {
+    const leftDate = left.scheduled_at ? new Date(left.scheduled_at).getTime() : Number.MAX_SAFE_INTEGER;
+    const rightDate = right.scheduled_at ? new Date(right.scheduled_at).getTime() : Number.MAX_SAFE_INTEGER;
+    return leftDate - rightDate || new Date(right.created_at) - new Date(left.created_at);
+  });
+  table.replaceChildren(...sortedPosts.map((post) => {
+    const row = document.createElement("tr");
+    const dateCell = document.createElement("td");
+    const date = document.createElement("div");
+    date.className = "client-cell";
+    const status = document.createElement("span");
+    status.className = `marketing-status is-${post.status}`;
+    status.textContent = marketingStatusLabels[post.status] ?? "Ideia";
+    const dateText = document.createElement("span");
+    dateText.textContent = formatMarketingDate(post.scheduled_at);
+    date.append(status, dateText);
+    dateCell.append(date);
+
+    const contentCell = document.createElement("td");
+    const content = document.createElement("div");
+    content.className = "marketing-cell";
+    const title = document.createElement("strong");
+    title.textContent = post.title;
+    const caption = document.createElement("span");
+    caption.textContent = post.caption || post.hashtags || "Legenda ainda não escrita.";
+    content.append(title, caption);
+    contentCell.append(content);
+
+    const mediaCell = document.createElement("td");
+    if (post.media_url) {
+      const mediaLink = document.createElement("a");
+      mediaLink.className = "row-action";
+      mediaLink.href = post.media_url;
+      mediaLink.target = "_blank";
+      mediaLink.rel = "noopener noreferrer";
+      mediaLink.textContent = "Abrir arquivo ↗";
+      mediaCell.append(mediaLink);
+    } else {
+      mediaCell.textContent = "—";
+    }
+
+    const reachCell = document.createElement("td");
+    reachCell.textContent = new Intl.NumberFormat("pt-BR").format(post.reach || 0);
+    const engagementCell = document.createElement("td");
+    const engagement = document.createElement("div");
+    engagement.className = "client-cell";
+    const engagementTotal = document.createElement("strong");
+    engagementTotal.textContent = new Intl.NumberFormat("pt-BR").format(
+      Number(post.likes || 0) + Number(post.comments || 0) + Number(post.shares || 0),
+    );
+    const engagementDetails = document.createElement("span");
+    engagementDetails.textContent = `${post.likes || 0} curtidas · ${post.comments || 0} comentários · ${post.shares || 0} compartilhamentos`;
+    engagement.append(engagementTotal, engagementDetails);
+    engagementCell.append(engagement);
+
+    const actionsCell = document.createElement("td");
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const edit = document.createElement("button");
+    edit.className = "row-action";
+    edit.type = "button";
+    edit.textContent = "Editar";
+    edit.addEventListener("click", () => openMarketingDialog(post));
+    const remove = document.createElement("button");
+    remove.className = "row-action is-delete";
+    remove.type = "button";
+    remove.textContent = "Excluir";
+    remove.addEventListener("click", () => void deleteMarketingPost(post));
+    actions.append(edit, remove);
+    actionsCell.append(actions);
+    row.append(dateCell, contentCell, mediaCell, reachCell, engagementCell, actionsCell);
+    return row;
+  }));
+  const hasPosts = marketingPosts.length > 0;
+  document.querySelector("#marketing-empty").hidden = hasPosts;
+  document.querySelector("#marketing-table-wrap").hidden = !hasPosts;
+}
+
+async function loadMarketingPosts() {
+  const status = document.querySelector("#marketing-load-status");
+  const { data, error } = await supabase
+    .from("marketing_posts")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) {
+    marketingPosts = [];
+    renderMarketing();
+    status.textContent = `Não foi possível carregar o conteúdo de marketing. Confira se a migration 20261115000000_create_marketing_posts.sql foi aplicada. Detalhe: ${error.message}`;
+    status.hidden = false;
+    return false;
+  }
+  marketingPosts = data;
+  status.hidden = true;
+  renderMarketing();
+  return true;
+}
+
+async function callMetaInstagramFunction(action, method = "GET") {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw new Error(`Não foi possível validar a sessão: ${error.message}`);
+  const accessToken = data.session?.access_token;
+  if (!accessToken) throw new Error("Sua sessão expirou. Entre novamente no painel.");
+
+  const url = new URL(metaInstagramFunctionUrl);
+  if (method === "GET") url.searchParams.set("action", action);
+  const response = await fetch(url, {
+    method,
+    headers: {
+      apikey: config.supabaseAnonKey,
+      Authorization: `Bearer ${accessToken}`,
+      ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(method === "POST" ? { body: JSON.stringify({ action }) } : {}),
+  });
+  let payload;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error("A função de conexão retornou uma resposta inválida.");
+  }
+  if (!response.ok) throw new Error(payload.error || "Não foi possível comunicar com a função de conexão.");
+  return payload;
+}
+
+async function loadMarketingConnection() {
+  const notice = document.querySelector(".marketing-connection-notice");
+  const errorNotice = document.querySelector("#marketing-connection-error");
+  const title = document.querySelector("#marketing-connection-title");
+  const description = document.querySelector("#marketing-connection-description");
+  const connectButton = document.querySelector("#connect-instagram");
+  const disconnectButton = document.querySelector("#disconnect-instagram");
+  const redirectUri = document.querySelector("#meta-redirect-uri");
+
+  if (!metaInstagramFunctionUrl) {
+    errorNotice.textContent = "Configure a URL do Supabase para habilitar a conexão com a Meta.";
+    errorNotice.hidden = false;
+    return;
+  }
+
+  redirectUri.textContent = metaInstagramFunctionUrl;
+  try {
+    const result = await callMetaInstagramFunction("status");
+    errorNotice.hidden = true;
+    if (result.connected && result.connection) {
+      notice.classList.add("is-connected");
+      title.textContent = `Instagram conectado: @${result.connection.instagram_username}`;
+      description.textContent = `Página ${result.connection.page_name} autorizada. A conexão está protegida no servidor; a publicação automática ainda precisa ser concluída.`;
+      connectButton.hidden = true;
+      disconnectButton.hidden = false;
+    } else {
+      notice.classList.remove("is-connected");
+      title.textContent = "Instagram ainda não conectado.";
+      description.textContent = "Cadastre o Redirect URI da Meta e conecte a conta profissional da Argos para autorizar a integração.";
+      connectButton.hidden = false;
+      disconnectButton.hidden = true;
+    }
+  } catch (error) {
+    notice.classList.remove("is-connected");
+    title.textContent = "Conexão com a Meta ainda não configurada.";
+    description.textContent = "Aplique a migration e publique a função meta-instagram no Supabase antes de conectar a conta.";
+    errorNotice.textContent = `Não foi possível verificar a conexão: ${error.message}`;
+    errorNotice.hidden = false;
+    connectButton.hidden = false;
+    disconnectButton.hidden = true;
+  }
+}
+
+function openMarketingDialog(post = null) {
+  marketingForm.reset();
+  document.querySelector("#marketing-id").value = post?.id ?? "";
+  document.querySelector("#marketing-title").value = post?.title ?? "";
+  document.querySelector("#marketing-caption").value = post?.caption ?? "";
+  document.querySelector("#marketing-hashtags").value = post?.hashtags ?? "";
+  document.querySelector("#marketing-media-url").value = post?.media_url ?? "";
+  document.querySelector("#marketing-post-status").value = post?.status ?? "idea";
+  document.querySelector("#marketing-scheduled-at").value = toLocalDateTimeInput(post?.scheduled_at);
+  document.querySelector("#marketing-reach-input").value = String(post?.reach ?? 0);
+  document.querySelector("#marketing-likes-input").value = String(post?.likes ?? 0);
+  document.querySelector("#marketing-comments-input").value = String(post?.comments ?? 0);
+  document.querySelector("#marketing-shares-input").value = String(post?.shares ?? 0);
+  document.querySelector("#marketing-dialog-title").textContent = post ? "Editar conteúdo" : "Novo conteúdo";
+  document.querySelector("#marketing-form-status").textContent = "";
+  document.querySelector("#marketing-dialog").showModal();
+}
+
+async function deleteMarketingPost(post) {
+  await deleteRecord("marketing_posts", post, `Excluir o conteúdo "${post.title}"?`);
 }
 
 async function loadData() {
@@ -220,6 +442,7 @@ async function loadData() {
   if (access.error || !access.data) {
     clients = [];
     entries = [];
+    marketingPosts = [];
     renderAll();
     showNotice(access.error ? `Não foi possível verificar o acesso: ${access.error.message}` : "Esta conta não está autorizada como administradora. Peça a inclusão dela em argos_admins no Supabase.", true);
     return;
@@ -236,6 +459,18 @@ async function loadData() {
   clients = clientsResult.data;
   entries = entriesResult.data;
   renderAll();
+  await loadMarketingPosts();
+  await loadMarketingConnection();
+  const callbackUrl = new URL(window.location.href);
+  const metaResult = callbackUrl.searchParams.get("meta");
+  if (metaResult) {
+    callbackUrl.searchParams.delete("meta");
+    window.history.replaceState(null, "", callbackUrl);
+    showNotice(
+      metaResult === "connected" ? "Instagram conectado com sucesso." : "A conexão com o Instagram não foi concluída.",
+      metaResult !== "connected",
+    );
+  }
 }
 
 function openClientDialog(client = null) {
@@ -411,6 +646,7 @@ function configureNavigation() {
     button.addEventListener("click", () => {
       if (button.dataset.openDialog === "client-dialog") openClientDialog();
       if (button.dataset.openDialog === "entry-dialog") openEntryDialog();
+      if (button.dataset.openDialog === "marketing-dialog") openMarketingDialog();
     });
   });
   document.querySelectorAll("[data-close-dialog]").forEach((button) => {
@@ -431,6 +667,46 @@ document.querySelector("#client-progress").addEventListener("input", (event) => 
 });
 document.querySelector("#copy-portal-link").addEventListener("click", () => {
   void copyPortalLink(document.querySelector("#portal-link-row").dataset.portalToken);
+});
+document.querySelector("#connect-instagram").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    const result = await callMetaInstagramFunction("connect", "POST");
+    const authorizeUrl = new URL(result.authorizeUrl);
+    if (authorizeUrl.protocol !== "https:" || authorizeUrl.hostname !== "www.facebook.com") {
+      throw new Error("A Meta retornou um endereço de autorização inválido.");
+    }
+    window.location.assign(authorizeUrl.href);
+  } catch (error) {
+    const notice = document.querySelector("#marketing-connection-error");
+    notice.textContent = `Não foi possível iniciar a conexão: ${error.message}`;
+    notice.hidden = false;
+    button.disabled = false;
+  }
+});
+document.querySelector("#disconnect-instagram").addEventListener("click", async (event) => {
+  if (!window.confirm("Desconectar a conta profissional da Argos deste painel?")) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    await callMetaInstagramFunction("disconnect", "POST");
+    await loadMarketingConnection();
+  } catch (error) {
+    const notice = document.querySelector("#marketing-connection-error");
+    notice.textContent = `Não foi possível desconectar: ${error.message}`;
+    notice.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+});
+document.querySelector("#copy-meta-redirect-uri").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(document.querySelector("#meta-redirect-uri").textContent);
+    showNotice("Redirect URI da Meta copiado.");
+  } catch (error) {
+    showNotice(`Não foi possível copiar o Redirect URI: ${error.message}`, true);
+  }
 });
 
 loginForm.addEventListener("submit", async (event) => {
@@ -488,6 +764,61 @@ clientForm.addEventListener("submit", async (event) => {
   await loadData();
 });
 
+marketingForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!marketingForm.reportValidity()) return;
+  const formData = new FormData(marketingForm);
+  const id = String(formData.get("id") || "");
+  const status = String(formData.get("status"));
+  const localSchedule = String(formData.get("scheduled_at") || "");
+  const statusElement = document.querySelector("#marketing-form-status");
+  if (status === "planned" && !localSchedule) {
+    statusElement.textContent = "Defina a data e o horário para planejar a publicação.";
+    document.querySelector("#marketing-scheduled-at").focus();
+    return;
+  }
+
+  const mediaValue = String(formData.get("media_url") || "").trim();
+  let mediaUrl = null;
+  if (mediaValue) {
+    try {
+      const parsedUrl = new URL(mediaValue);
+      if (parsedUrl.protocol !== "https:" || parsedUrl.username || parsedUrl.password) throw new Error();
+      mediaUrl = parsedUrl.href;
+    } catch {
+      statusElement.textContent = "O link da imagem ou vídeo deve ser um endereço HTTPS público e válido.";
+      document.querySelector("#marketing-media-url").focus();
+      return;
+    }
+  }
+
+  const countFields = ["reach", "likes", "comments", "shares"];
+  const counts = Object.fromEntries(countFields.map((field) => [field, Number(formData.get(field) || 0)]));
+  if (Object.values(counts).some((value) => !Number.isSafeInteger(value) || value < 0 || value > 2147483647)) {
+    statusElement.textContent = "As métricas devem ser números inteiros positivos.";
+    return;
+  }
+
+  const existingPost = marketingPosts.find((post) => post.id === id);
+  const values = {
+    id,
+    title: String(formData.get("title")).trim(),
+    caption: String(formData.get("caption") || "").trim(),
+    hashtags: String(formData.get("hashtags") || "").trim(),
+    media_url: mediaUrl,
+    status,
+    scheduled_at: localSchedule ? new Date(localSchedule).toISOString() : null,
+    published_at: status === "published" ? existingPost?.published_at ?? new Date().toISOString() : null,
+    ...counts,
+    updated_at: new Date().toISOString(),
+  };
+  const saved = await saveForm("marketing_posts", statusElement, values);
+  if (!saved) return;
+  document.querySelector("#marketing-dialog").close();
+  showNotice("");
+  await loadMarketingPosts();
+});
+
 entryForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!entryForm.reportValidity()) return;
@@ -520,6 +851,7 @@ if (!config.supabaseUrl || !config.supabaseAnonKey) {
     else {
       clients = [];
       entries = [];
+      marketingPosts = [];
       renderAll();
       loginForm.reset();
       loginStatus.textContent = "";
